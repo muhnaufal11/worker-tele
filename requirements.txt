@@ -1,0 +1,8 @@
+pyrogram>=2.0.106
+cryptography>=42.0.0
+requests>=2.31.0
+aiohttp>=3.9.0
+psutil>=5.9.0
+pillow>=10.0.0
+python-dotenv>=1.0.0
+TgCrypto-pyrofork>=1.2.8

@@ -1,0 +1,49 @@
+# ==========================================================
+# Nipnime Worker .gitignore (GitHub Codespaces Safe)
+# ==========================================================
+
+# Kredensial & Secrets (Mencegah token Telegram bocor)
+.env
+*.session
+*.session-journal
+.tg_sessions/
+.acefile_cookies.json
+.worker_id
+
+# Status Cluster & Sinkronisasi Lokal
+.active_workers.json
+.cleared_cooldowns.json
+.completed_anime_state.json*
+.episode_claims.json
+.handover_2k_jobs.json
+.kill_remote_worker
+.ongoing_quality_state.json
+.remote_worker_heartbeat.json
+.server_worker_heartbeat.json
+.stuck_incidents.json
+.upload_slots.json
+.worker_control_state.json
+.worker_heartbeat.json
+.worker_lease.json
+
+# Cache Video & File Sementara (Mencegah beban storage besar)
+temp_videos/
+cache_stream/
+relay_uploads/
+scratch/
+all_anime_db.json
+unmatched_titles.json
+unmatched_report.json
+real_completed_stats*.json
+*.log
+
+# Python & Node Dependencies
+__pycache__/
+*.py[cod]
+*$py.class
+node_modules/
+
+# Binary Windows Berukuran Besar (>50MB seperti ffmpeg.exe)
+bin/*.exe
+bin/*.dll
+worker-core.zip

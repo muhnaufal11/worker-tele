@@ -1,0 +1,21 @@
+{
+  "name": "nipnime-terop-worker",
+  "version": "1.0.0",
+  "description": "Remote worker scraper untuk Terop Kuramanime dan Nekopoi di luar jaringan",
+  "main": "worker.js",
+  "scripts": {
+    "start": "node worker.js",
+    "monitor": "node monitor.js",
+    "kurama": "node worker.js --source=kurama",
+    "neko": "node worker.js --source=neko",
+    "all": "node worker.js --source=all"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.5",
+    "puppeteer": "^22.15.0"
+  },
+  "keywords": ["nipnime", "scraper", "worker", "kuramanime", "nekopoi"],
+  "author": "Nipnime Team",
+  "license": "ISC"
+}
