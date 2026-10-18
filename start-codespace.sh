@@ -64,12 +64,12 @@ echo -e "${GREEN}[OK] Menggunakan ${PY_VER}${NC}"
 
 # 3. Cek Library Python
 echo -e "${YELLOW}[*] Memeriksa paket Python...${NC}"
-if ! $PY_CMD -c "import pyrogram, requests, aiohttp, psutil, PIL, dotenv" >/dev/null 2>&1; then
-    echo -e "${YELLOW}[*] Menginstall dependencies Python...${NC}"
+if ! $PY_CMD -c "import pyrogram, requests, aiohttp, psutil, PIL, dotenv, curl_cffi" >/dev/null 2>&1; then
+    echo -e "${YELLOW}[*] Menginstall dependencies Python (termasuk curl_cffi stealth engine)...${NC}"
     if [ -f "requirements.txt" ]; then
         $PY_CMD -m pip install -q -r requirements.txt
     else
-        $PY_CMD -m pip install -q pyrogram requests aiohttp psutil pillow python-dotenv TgCrypto-pyrofork cryptography
+        $PY_CMD -m pip install -q pyrogram requests aiohttp psutil pillow python-dotenv TgCrypto-pyrofork cryptography curl_cffi
     fi
     echo -e "${GREEN}[OK] Dependencies Python terpasang.${NC}"
 else
