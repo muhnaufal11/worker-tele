@@ -308,15 +308,18 @@ def parse_kusonime_batch_page(page_url: str, html: str = None, timeout: int = 15
                 elif 'acefile.co' in href_l or 'sharer' in h_name_l or 'google sharer' in h_name_l:
                     hoster_type = 'Acefile'
                     priority = 1
+                elif 'mediafire.com' in href_l or 'mediafire' in h_name_l:
+                    hoster_type = 'Mediafire'
+                    priority = 2
                 elif 'mega.nz' in href_l or 'mega' in h_name_l:
                     hoster_type = 'Mega'
                     priority = 2
                 elif 'pixeldrain.com' in href_l or 'pixeldrain' in h_name_l:
                     hoster_type = 'Pixeldrain'
-                    priority = 3
+                    priority = 90
                 elif 'terabox' in href_l or 'terabox' in h_name_l:
                     hoster_type = 'Terabox'
-                    priority = 4
+                    priority = 99
                 else:
                     hoster_type = h_name_clean
                     priority = 10

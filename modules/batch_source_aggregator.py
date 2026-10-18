@@ -230,12 +230,15 @@ def parse_otakudesu_batch_page(batch_url: str, timeout: int = 15) -> Dict[str, L
             elif 'acefile' in hl or 'acefile.co' in ul:
                 hoster_type = 'AceFile'
                 priority = 1
+            elif 'mediafire' in hl or 'mediafire.com' in ul:
+                hoster_type = 'Mediafire'
+                priority = 2
             elif 'mega' in hl or 'mega.nz' in ul:
                 hoster_type = 'Mega'
                 priority = 2
             elif 'pdrain' in hl or 'pixeldrain' in ul:
                 hoster_type = 'Pixeldrain'
-                priority = 3
+                priority = 90
             else:
                 priority = 10
 

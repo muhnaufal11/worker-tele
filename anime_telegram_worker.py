@@ -341,6 +341,7 @@ API_ID = (os.getenv('TELEGRAM_API_ID') or _sec_dec('XV5AXlBZV2s=')).strip()
 API_HASH = (os.getenv('TELEGRAM_API_HASH') or _sec_dec('VwxBWw9VVWYSCl4DVF1qUFNWBllRRg1aW11nQl1QXAg=')).strip()
 BOT_TOKEN = (os.getenv('TELEGRAM_BOT_TOKEN') or _sec_dec('Vl9BXVxdU2dBWVMkLSwbBQRaTwUqRD0iJTA7By4YDB4wBWZTSAEjIwFZAlUGFg==')).strip()
 CHANNEL_ID = (os.getenv('TELEGRAM_CHANNEL_ID') or _sec_dec('Q1hAXl1ZV2dLX1pRXFQ=')).strip()
+TELEGRAM_CHANNEL_ID = CHANNEL_ID
 STREAM_BASE_URL = (os.getenv('TELEGRAM_STREAM_BASE_URL') or _sec_dec('Bh0EHhpXSnAdARkLBQk6HFNdW0EdF0MaGRc6EgU=')).rstrip('/')
 
 def sync_request_nipnime_api(method: str, endpoint_or_url: str, json_data: dict = None, headers: dict = None, timeout: int = 15) -> tuple[int, dict | None]:
@@ -5478,6 +5479,15 @@ async def _download_single_stream_url(url: str, dest_path: Path, quality: str, m
                                                 log("SLOW_SPEED", f"⚠️ Unduhan [{quality}] macet (tidak ada respon data selama 8s). Dibatalkan...", YELLOW)
                                                 break
 
+                                            # Pixeldrain Parallel Watchdog: Jika multi-stream Pixeldrain tetap ter-throttle <= 1.5 MB/s pada file besar (> 500 MB)
+                                            if 'pixeldrain' in url.lower() and cur_dl > 0 and data_elapsed >= 10.0 and speed_mb <= 1.5 and c_len > 500 * 1024 * 1024 and (cur_dl / c_len) < 0.6:
+                                                state_ref['aborted_slow'] = True
+                                                for pt in part_tasks:
+                                                    pt.cancel()
+                                                PROGRESS_MGR.remove(dl_task_key)
+                                                log("SLOW_SPEED", f"⚠️ Unduhan Pixeldrain ter-throttle free-tier ({speed_mb:.1f} MB/s <= 1.5 MB/s pada file {total_mb:.1f} MB). Dibatalkan seketika agar tidak menghambat worker...", YELLOW)
+                                                break
+
                                             # Slow Speed Watchdog: Batalkan unduhan jika terdeteksi lambat (< min_speed_mb) setelah 12 detik transfer aktif
                                             if min_speed_mb > 0 and cur_dl > 0 and data_elapsed >= 12.0 and speed_mb < min_speed_mb and (cur_dl / c_len) < 0.6:
                                                 state_ref['aborted_slow'] = True
@@ -5648,12 +5658,18 @@ async def _download_single_stream_url(url: str, dest_path: Path, quality: str, m
                                     state_ref['abort_reason'] = f"kecepatan lambat ({speed_mb:.1f} MB/s < batas {min_speed_mb} MB/s)"
                                     break
 
-                                # Khusus Pixeldrain Throttling Guard: Hanya batalkan jika worker meminta kecepatan tinggi (ongoing min_speed_mb >= 1.5)
-                                # Untuk unduhan batch anime tamat (min_speed_mb < 1.5), biarkan Pixeldrain berjalan penuh hingga tuntas!
-                                if min_speed_mb >= 1.5 and 'pixeldrain' in active_url.lower() and cur_dl > 0 and data_elapsed >= 8.0 and speed_mb <= 1.2 and (total_size == 0 or (cur_dl / total_size) < 0.7):
-                                    state_ref['aborted'] = True
-                                    state_ref['abort_reason'] = f"kecepatan limit hoster Pixeldrain ({speed_mb:.1f} MB/s <= 1.2 MB/s free tier limit)"
-                                    break
+                                # Khusus Pixeldrain Throttling Guard:
+                                # Pixeldrain free tier membatasi kecepatan ke 1.0 MB/s per IP.
+                                # Batalkan seketika jika ter-throttle (<= 1.5 MB/s) pada:
+                                # 1) Rilisan ongoing (min_speed_mb >= 1.5), ATAU
+                                # 2) File besar (> 500 MB) pada unduhan batch anime tamat (agar tidak memblokir worker 1-2 jam!)
+                                if 'pixeldrain' in active_url.lower() and cur_dl > 0 and data_elapsed >= 8.0:
+                                    is_large_file = total_size > 500 * 1024 * 1024
+                                    is_throttled = speed_mb <= 1.5
+                                    if (is_large_file and is_throttled) or (min_speed_mb >= 1.5 and is_throttled):
+                                        state_ref['aborted'] = True
+                                        state_ref['abort_reason'] = f"kecepatan limit hoster Pixeldrain ({speed_mb:.1f} MB/s <= 1.5 MB/s free tier throttle, file {total_mb:.1f} MB terlalu besar)"
+                                        break
 
                                 PROGRESS_MGR.update(
                                     key=dl_task_key,
@@ -8219,9 +8235,9 @@ async def claim_episode_lock(session: aiohttp.ClientSession, anime_title: str, e
             if resp.status == 200:
                 data = await resp.json()
                 return bool(data.get('granted'))
-            return True
+            return False
     except Exception:
-        return True
+        return False
 
 async def release_episode_lock(session: aiohttp.ClientSession, anime_title: str, episode_number: int):
     """Melepaskan klaim pengerjaan episode di server Nipnime."""
@@ -8518,7 +8534,8 @@ async def try_process_kusonime_batch(
         return False
 
     # 2. Distributed Claim Lock khusus batch agar cluster worker tidak tabrakan (TTL 1 Jam)
-    claim_success = await claim_episode_lock(session, f"batch_{db_title}", 1, anime_id, ttl=3600)
+    norm_batch_title = normalize_title(db_title).replace(' ', '_')
+    claim_success = await claim_episode_lock(session, f"batch_{norm_batch_title}", 1, anime_id, ttl=3600)
     if not claim_success:
         return False
 
@@ -8745,7 +8762,7 @@ async def try_process_kusonime_batch(
 
         return False
     finally:
-        await release_episode_lock(session, f"batch_{db_title}", 1)
+        await release_episode_lock(session, f"batch_{norm_batch_title}", 1)
 
 async def delegate_2k_handover(
     session: aiohttp.ClientSession,
@@ -8765,7 +8782,7 @@ async def delegate_2k_handover(
         'episode_number': ep_num,
         'episode_id': episode_id,
         'source_msg_id': source_msg_id,
-        'source_channel_id': TELEGRAM_CHANNEL_ID,
+        'source_channel_id': CHANNEL_ID,
         'delegated_by': get_worker_id()
     }
     headers = {
@@ -8844,7 +8861,7 @@ async def check_and_process_2k_handover(tg_client: Client, session: aiohttp.Clie
             ep_num = job.get('episode_number', 1)
             episode_id = job.get('episode_id')
             source_msg_id = job.get('source_msg_id')
-            source_chan = job.get('source_channel_id') or TELEGRAM_CHANNEL_ID
+            source_chan = job.get('source_channel_id') or CHANNEL_ID
 
             log("CLUSTER_2K", f"🎯 Mengklaim tugas 2K cluster: {db_title} Ep {ep_num} (Job: {job_id}) dari worker {job.get('delegated_by')}...", BOLD + CYAN)
             update_heartbeat(status="running", current_task=f"🎬 2K Upscale Cluster: {db_title} Ep {ep_num}")
@@ -8973,7 +8990,8 @@ async def try_process_kuramanime_batch(
     if not batch_url:
         return False
 
-    claim_success = await claim_episode_lock(session, f"batch_{db_title}", 1, anime_id, ttl=3600)
+    norm_batch_title = normalize_title(db_title).replace(' ', '_')
+    claim_success = await claim_episode_lock(session, f"batch_{norm_batch_title}", 1, anime_id, ttl=3600)
     if not claim_success:
         return False
 
@@ -9190,7 +9208,7 @@ async def try_process_kuramanime_batch(
 
         return False
     finally:
-        await release_episode_lock(session, f"batch_{db_title}", 1)
+        await release_episode_lock(session, f"batch_{norm_batch_title}", 1)
 
 async def try_process_otakudesu_batch(
     tg_client: Client,
@@ -9244,7 +9262,8 @@ async def try_process_otakudesu_batch(
     if not batch_url:
         return False
 
-    claim_success = await claim_episode_lock(session, f"batch_{db_title}", 1, anime_id, ttl=3600)
+    norm_batch_title = normalize_title(db_title).replace(' ', '_')
+    claim_success = await claim_episode_lock(session, f"batch_{norm_batch_title}", 1, anime_id, ttl=3600)
     if not claim_success:
         return False
 
@@ -9438,7 +9457,7 @@ async def try_process_otakudesu_batch(
 
         return False
     finally:
-        await release_episode_lock(session, f"batch_{db_title}", 1)
+        await release_episode_lock(session, f"batch_{norm_batch_title}", 1)
 
 async def try_process_multi_source_batch(
     tg_client: Client,
