@@ -10216,6 +10216,18 @@ async def run_ongoing_daemon(interval_sec: int = 60, concurrency: int = 1):
 
     concurrency_text = f" [Paralel {concurrency} Task]" if concurrency > 1 else ""
     log("READY", f"Mode Ongoing Auto-Watcher Aktif ({device_role.upper()})!{concurrency_text}", BOLD + GREEN)
+    try:
+        from kalkulator_estimasi import estimate_throughput
+        _cores = os.cpu_count() or 2
+        _ram = 4.0
+        if psutil:
+            try: _ram = round(psutil.virtual_memory().total / (1024 ** 3), 1)
+            except Exception: pass
+        _gpu = bool(NVIDIA_GPU_AVAILABLE)
+        _est = estimate_throughput(_cores, _ram, _gpu, concurrency, network="cloud" if device_role in ('vps', 'azure', 'aws', 'oracle', 'colab', 'codespace') else "home")
+        log("ESTIMASI", f"⚡ Kapasitas Mesin: ~{_est['ep_per_hour_completed']} Ep/Jam (Render) | ~{_est['ep_per_hour_ongoing']} Ep/Jam (Ongoing) | Rata-rata: ~{_est['ep_per_hour_avg']} Ep/Jam ({_est['ep_per_day_avg']:,} Ep/Hari)", BOLD + CYAN)
+    except Exception:
+        pass
     if WORKER_SHARD not in ('all', 'semua', 'none', '*', ''):
         log("SHARD", f"⚡ PARTISI EPISODE AKTIF: Shard [{get_shard_description().upper()}]", BOLD + CYAN)
         if WORKER_SHARD in ('odd', 'ganjil', '1', '1/2'):
